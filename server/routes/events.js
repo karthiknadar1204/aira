@@ -4,7 +4,8 @@ import { ingestEvent } from '../services/eventService.js';
 import { getCachedEventCount } from '../services/cacheService.js';
 import { db } from '../config/db.js';
 import { events } from '../config/schema.js';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, lte, count } from 'drizzle-orm';
+import redis from '../utils/redis.js';
 
 const router = express.Router();
 
@@ -33,25 +34,34 @@ router.get('/users/:userId/events/count', async (req, res) => {
   }
 
   const result = await db
-    .select({ count: { $count: '*' } })
+    .select({ count: count() })
     .from(events)
     .where(eq(events.userId, userId));
 
-  const count = result[0]?.count || 0;
-  res.json({ userId, count, source: 'db' });
+  const eventCount = result[0]?.count || 0;
+  
+  await redis.setex(`user:${userId}:event_count`, 300, eventCount.toString());
+  
+  res.json({ userId, count: eventCount, source: 'db' });
 });
 
 router.get('/users/:userId/events', async (req, res) => {
   const { userId } = req.params;
   const { type, start, end } = req.query;
 
-  let query = db.select().from(events).where(eq(events.userId, userId));
+  const conditions = [eq(events.userId, userId)];
+  
+  if (type) conditions.push(eq(events.eventType, type));
+  if (start) conditions.push(gte(events.createdAt, new Date(start)));
+  if (end) conditions.push(lte(events.createdAt, new Date(end)));
 
-  if (type) query = query.where(eq(events.eventType, type));
-  if (start) query = query.where(gte(events.createdAt, new Date(start)));
-  if (end) query = query.where(lte(events.createdAt, new Date(end)));
-
-  const result = await query.orderBy(events.createdAt.desc()).limit(100);
+  const result = await db
+    .select()
+    .from(events)
+    .where(and(...conditions))
+    .orderBy(events.createdAt.desc())
+    .limit(100);
+    
   res.json(result);
 });
 

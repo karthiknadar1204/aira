@@ -1,31 +1,54 @@
 import { Worker } from 'bullmq';
-import { db } from '../config/db.js';
-import { userEventStats } from '../config/schema.js';
 import redis from '../utils/redis.js';
-import { eq } from 'drizzle-orm';
+import { db } from '../config/db.js';
+import { events, userEventStats } from '../config/schema.js';
+import { eq, count } from 'drizzle-orm';
+
+console.log('Starting BullMQ worker...');
 
 const worker = new Worker('event-processing', async (job) => {
   const { userId } = job.data;
 
-  const countResult = await db
-    .select({ count: { $count: '*' } })
-    .from(userEventStats)
-    .where(eq(userEventStats.userId, userId));
+  console.log(`Worker: Processing job for user ${userId}`);
 
-  const total = countResult[0]?.count || 0;
+
+  const result = await db
+    .select({ count: count() })
+    .from(events)
+    .where(eq(events.userId, userId));
+
+  const total = Number(result[0]?.count || 0);
+  console.log(`Worker: Counted ${total} events for ${userId}`);
+
+  await redis.setex(`user:${userId}:event_count`, 300, total.toString());
+  console.log(`Worker: Cached user:${userId}:event_count = ${total}`);
 
   await db
     .insert(userEventStats)
-    .values({ userId, totalEvents: total })
+    .values({
+      userId,
+      totalEvents: total,
+      updatedAt: new Date(),
+    })
     .onConflictDoUpdate({
       target: userEventStats.userId,
-      set: { totalEvents: total, updatedAt: new Date() },
+      set: {
+        totalEvents: total,
+        updatedAt: new Date(),
+      },
     });
 
-  await redis.setEx(`user:${userId}:event_count`, 300, total.toString());
+  console.log(`Worker: Updated user_event_stats for ${userId}`);
 }, {
   connection: redis,
 });
 
-worker.on('completed', (job) => console.log(`Processed event count for user ${job.data.userId}`));
-worker.on('failed', (job, err) => console.log(`Job failed:`, err));
+worker.on('completed', (job) => {
+  console.log(`Job completed for user ${(job.data)?.userId}`);
+});
+
+worker.on('failed', (job, err) => {
+  console.error(`Job FAILED for user ${(job?.data)?.userId}:`, err);
+});
+
+console.log('BullMQ worker is ACTIVE and listening for jobs');

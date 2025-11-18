@@ -23,6 +23,7 @@
     "ioredis": "^5.8.2",
     "nodemon": "^3.1.11",
     "pg": "^8.16.3",
+    "redis": "^5.9.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {
