@@ -1,7 +1,7 @@
-import { db } from '../config/db';
-import { events } from '../config/schema';
-import { eventQueue } from '../queues/queue';
-import { invalidateUserCache } from './cacheService';
+import { db } from '../config/db.js';
+import { events } from '../config/schema.js';
+import { eventQueue } from '../queues/queue.js';
+import { invalidateUserCache } from './cacheService.js';
 
 export const ingestEvent = async (userId, eventType, payload) => {
   await db.insert(events).values({

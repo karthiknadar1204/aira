@@ -1,4 +1,4 @@
-import redis from '../utils/redis';
+import redis from '../utils/redis.js';
 
 export const getCachedEventCount = async (userId) => {
   const cached = await redis.get(`user:${userId}:event_count`);

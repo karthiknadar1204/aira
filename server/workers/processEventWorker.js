@@ -1,13 +1,12 @@
 import { Worker } from 'bullmq';
-import { db } from '../config/db';
-import { userEventStats } from '../config/schema';
-import redis from '../utils/redis';
+import { db } from '../config/db.js';
+import { userEventStats } from '../config/schema.js';
+import redis from '../utils/redis.js';
 import { eq } from 'drizzle-orm';
 
 const worker = new Worker('event-processing', async (job) => {
   const { userId } = job.data;
 
-  // Count events from DB
   const countResult = await db
     .select({ count: { $count: '*' } })
     .from(userEventStats)
@@ -15,7 +14,6 @@ const worker = new Worker('event-processing', async (job) => {
 
   const total = countResult[0]?.count || 0;
 
-  // Update or insert stats
   await db
     .insert(userEventStats)
     .values({ userId, totalEvents: total })
@@ -24,7 +22,6 @@ const worker = new Worker('event-processing', async (job) => {
       set: { totalEvents: total, updatedAt: new Date() },
     });
 
-  // Cache in Redis for 5 minutes
   await redis.setEx(`user:${userId}:event_count`, 300, total.toString());
 }, {
   connection: redis,
