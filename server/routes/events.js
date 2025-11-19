@@ -59,9 +59,9 @@ router.get('/users/:userId/events', async (req, res) => {
     .select()
     .from(events)
     .where(and(...conditions))
-    .orderBy(events.createdAt.desc())
+    .orderBy({ createdAt: 'desc' })
     .limit(100);
-    
+  
   res.json(result);
 });
 

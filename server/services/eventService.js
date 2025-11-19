@@ -11,5 +11,8 @@ export const ingestEvent = async (userId, eventType, payload) => {
   });
 
   await invalidateUserCache(userId);
-  await eventQueue.add('update-count', { userId }, { jobId: `count-${userId}` });
+  await eventQueue.add('update-count', { userId },
+     { jobId: `count-${userId}` },
+     { removeOnComplete: true, removeOnFail: true, attempts: 3,backoff: { type: 'exponential', delay: 1000 } },
+    );
 };

@@ -24,19 +24,19 @@ const worker = new Worker('event-processing', async (job) => {
   console.log(`Worker: Cached user:${userId}:event_count = ${total}`);
 
   await db
-    .insert(userEventStats)
-    .values({
-      userId,
+  .insert(userEventStats)
+  .values({
+    userId,
+    totalEvents: total,
+    updatedAt: new Date(),
+  })
+  .onConflictDoUpdate({
+    target: [userEventStats.userId],
+    set: {
       totalEvents: total,
       updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: userEventStats.userId,
-      set: {
-        totalEvents: total,
-        updatedAt: new Date(),
-      },
-    });
+    },
+  });
 
   console.log(`Worker: Updated user_event_stats for ${userId}`);
 }, {
